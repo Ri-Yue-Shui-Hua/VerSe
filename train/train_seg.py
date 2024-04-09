@@ -14,6 +14,7 @@ from torch.optim.lr_scheduler import MultiStepLR, CosineAnnealingLR, ReduceLROnP
 import torchvision.models as models
 from torch.utils.tensorboard import SummaryWriter
 import sys
+from models.Unet3D import UNet_3D as UNet
 
 
 def setup_seed(seed):
@@ -25,6 +26,7 @@ def setup_seed(seed):
 
 
 def train_seg(args):
+	device = args.device if torch.cuda.is_available() else 'cpu'
 	epochs = args.epochs
 	batch_size = args.batch_size
 	number_class = args.num_class
@@ -39,11 +41,11 @@ def train_seg(args):
 	train_set = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=False)
 	test_set = DataLoader(dataset=test_data, batch_size=1, shuffle=False)
 	start_epoch = 0
-	model = ""
-	model = model.to(device)
+	model = UNet(2, 1).to(device)
 	loss_func = nn.MSELoss()
 	optimizer = optim.Adam(model.parameters(), lr=base_lr)
 	scheduler = MultiStepLR(optimizer, milestones=[epochs//3, epochs//3*2], gamma=0.1)
+	gaussian = Gaussian(3, None, 5, norm=True).to(DEVICE)
 	for epoch in tqdm(range(start_epoch, epochs)):
 		tqdm.write(f"----------{epoch}----------")
 		model.train()
@@ -84,9 +86,9 @@ def train_seg(args):
 
 
 if __name__ == "__main__":
-	device = ""
 	setup_seed(33)
 	parser = argparse.ArgumentParser(description='Segmentation training')
+	parser.add_argument("--device", type=str, default='cuda')
 	parser.add_argument('-lr', default=0.0001, type=float, help='learning rate')
 	parser.add_argument('-batch_size', default=1, type=int, help='batch size')
 	parser.add_argument('-epochs', default=100, type=int, help='training epochs')
