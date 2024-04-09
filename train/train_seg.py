@@ -15,6 +15,9 @@ import torchvision.models as models
 from torch.utils.tensorboard import SummaryWriter
 import sys
 from models.Unet3D import UNet_3D as UNet
+from utils.filters import Gaussian
+from utils.utils import *
+from dataset.CommonDataSet import CommonDataset
 
 
 def setup_seed(seed):
@@ -33,11 +36,15 @@ def train_seg(args):
 	eval_epoch = args.eval_epoch
 	log_inter = args.log_inter
 	base_lr = args.lr
+	root_dir = args.root
+	image_suffix = args.img_suffix
 	save_name = str(batch_size)
 	save_path = args.log_path
 	writer = SummaryWriter(save_path + save_name)
-	train_data = ""
-	test_data = ""
+	train_file_list = get_files(root_dir, image_suffix)
+	train_data = CommonDataset(root_dir, train_file_list, 'train')
+	test_file_list = get_files(root_dir, image_suffix)
+	test_data = CommonDataset(root_dir, test_file_list, 'test')
 	train_set = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=False)
 	test_set = DataLoader(dataset=test_data, batch_size=1, shuffle=False)
 	start_epoch = 0
@@ -45,7 +52,7 @@ def train_seg(args):
 	loss_func = nn.MSELoss()
 	optimizer = optim.Adam(model.parameters(), lr=base_lr)
 	scheduler = MultiStepLR(optimizer, milestones=[epochs//3, epochs//3*2], gamma=0.1)
-	gaussian = Gaussian(3, None, 5, norm=True).to(DEVICE)
+	gaussian = Gaussian(3, None, 5, norm=True).to(device)
 	for epoch in tqdm(range(start_epoch, epochs)):
 		tqdm.write(f"----------{epoch}----------")
 		model.train()

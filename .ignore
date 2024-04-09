@@ -3,5 +3,5 @@
 *.onnx
 ./trained_models
 ./runs
-./.idea
+./idea
 ./DATA
