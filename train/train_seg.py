@@ -41,12 +41,15 @@ def train_seg(args):
 	save_name = str(batch_size)
 	save_path = args.log_path
 	writer = SummaryWriter(save_path + save_name)
-	train_file_list = get_files(root_dir, image_suffix)
-	train_data = CommonDataset(root_dir, train_file_list, 'train')
-	test_file_list = get_files(root_dir, image_suffix)
-	test_data = CommonDataset(root_dir, test_file_list, 'test')
-	train_set = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=False)
-	test_set = DataLoader(dataset=test_data, batch_size=1, shuffle=False)
+	train_file_list = get_files(os.path.join(root_dir, 'train'), image_suffix)
+	train_set = CommonDataset(root_dir, train_file_list, 'train')
+	test_file_list = get_files(os.path.join(root_dir, 'test'), image_suffix)
+	test_set = CommonDataset(root_dir, test_file_list, 'test')
+	val_file_list = get_files(os.path.join(root_dir, 'val'), image_suffix)
+	val_set = CommonDataset(root_dir, val_file_list, 'val')
+	train_loader = DataLoader(dataset=train_set, batch_size=batch_size, shuffle=False)
+	test_loader = DataLoader(dataset=test_set, batch_size=1, shuffle=False)
+	val_loader = DataLoader(dataset=val_set, batch_size=1, shuffle=False)
 	start_epoch = 0
 	model = UNet(2, 1).to(device)
 	loss_func = nn.MSELoss()
@@ -58,6 +61,22 @@ def train_seg(args):
 		model.train()
 		training_all_loss = 0.0
 		acc = 0
+		for _, (ID, img_path) in enumerate(train_loader):
+			patches = train_set.generate_train_patch(img_path[0])
+			patch_loader = DataLoader(patches, 1)
+			for i, (image, mask, landmark) in enumerate(patch_loader):
+				optimizer.zero_grad()
+				image = image.to(device)
+				mask = mask.to(device)
+				heatmap = gaussian(landmark.to(device))
+				inputs = torch.cat([image, heatmap], dim=1)
+				output = model(inputs)
+				output = torch.sigmoid(output)
+				loss = loss_func(output, mask.float())
+				loss.backward()
+				optimizer.step()
+
+
 		for i, (data, target) in enumerate(train_set):
 			optimizer.zero_grad()
 			data = data.to(device)
