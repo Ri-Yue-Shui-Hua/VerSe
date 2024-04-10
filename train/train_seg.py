@@ -16,8 +16,10 @@ from torch.utils.tensorboard import SummaryWriter
 import sys
 from models.Unet3D import UNet_3D as UNet
 from utils.filters import Gaussian
+from utils.metric import Dice
 from utils.utils import *
 from dataset.CommonDataSet import CommonDataset
+import time
 
 
 def setup_seed(seed):
@@ -56,11 +58,14 @@ def train_seg(args):
 	optimizer = optim.Adam(model.parameters(), lr=base_lr)
 	scheduler = MultiStepLR(optimizer, milestones=[epochs//3, epochs//3*2], gamma=0.1)
 	gaussian = Gaussian(3, None, 5, norm=True).to(device)
-	for epoch in tqdm(range(start_epoch, epochs)):
-		tqdm.write(f"----------{epoch}----------")
+	for ep in tqdm(range(start_epoch, epochs)):
+		tqdm.write(f"----------{ep}----------")
 		model.train()
+		train_loss = 0.
+		train_dc = 0.
 		training_all_loss = 0.0
 		acc = 0
+		begin = time.time()
 		for _, (ID, img_path) in enumerate(train_loader):
 			patches = train_set.generate_train_patch(img_path[0])
 			patch_loader = DataLoader(patches, 1)
@@ -75,6 +80,21 @@ def train_seg(args):
 				loss = loss_func(output, mask.float())
 				loss.backward()
 				optimizer.step()
+				train_loss += loss.item()
+				output = output.squeeze().cpu().detach().numpy()
+				output[output >= 0.5] = 1
+				output[output < 0.5] = 0
+				mask = mask.squeeze().cpu().numpy()
+				dc = Dice(output, mask)
+				train_dc += dc
+				print(
+					f"Ep:{ep + 1}\tID:{ID[0]}\tLoss:{loss.item():.6f}\tDice:{dc * 100:.2f}%", end='\r')
+		end = time.time()
+		train_loss /= NUM_BATCHES
+		train_dc /= NUM_BATCHES
+		logger.info(
+					f"Epoch:{ep + 1}/{epochs}\ttrain_loss:{train_loss:.6f}\ttrain_dice:{train_dc * 100:.2f}%\tTime:{end - begin:.3f}s"
+				)
 
 
 		for i, (data, target) in enumerate(train_set):
