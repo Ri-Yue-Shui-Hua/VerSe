@@ -1,0 +1,7 @@
+*.nii.gz
+*.pth
+*.onnx
+trained_models/
+runs/
+.idea/
+DATA/
