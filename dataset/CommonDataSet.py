@@ -116,7 +116,7 @@ class CommonDataset(Dataset):
 			direction = np.array(list(direction)).reshape(3, 3)
 			lps_center = np.matmul(direction, np.array(ijk_coord) * spacing)
 			lps_center = origin + lps_center
-			print("lps_center: ", lps_center)
+			# print("lps_center: ", lps_center)
 			radius = np.array(patch_size) / 2
 			new_img = resampleCropImage(image, outspacing=spacing, lps_center=lps_center, radius=radius,
 			direction=direction)

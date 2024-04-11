@@ -25,3 +25,8 @@ Public dataset:
 - (VerSe'19 train): https://s3.bonescreen.de/public/VerSe-complete/dataset-verse19training.zip
 - (VerSe'19 validation): https://s3.bonescreen.de/public/VerSe-complete/dataset-verse19validation.zip
 - (VerSe'19 test): https://s3.bonescreen.de/public/VerSe-complete/dataset-verse19test.zip
+
+## 代码参考
+
+
+
