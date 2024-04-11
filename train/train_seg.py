@@ -77,7 +77,6 @@ def train_seg(args):
     model = UNet(2, number_class).to(device)
     loss_func = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=base_lr)
-    scheduler = MultiStepLR(optimizer, milestones=[epochs // 3, epochs // 3 * 2], gamma=0.1)
     gaussian = Gaussian(3, None, 5, norm=True).to(device)
     start_epoch = 0
     if pretrained:
@@ -95,8 +94,6 @@ def train_seg(args):
         model.train()
         train_loss = 0.
         train_dc = 0.
-        training_all_loss = 0.0
-        acc = 0
         num_batches = 0
         begin = time.time()
         for _, (ID, img_path) in enumerate(train_loader):
@@ -110,7 +107,6 @@ def train_seg(args):
                 heatmap = gaussian(landmark.to(device))
                 inputs = torch.cat([image, heatmap], dim=1)
                 output = model(inputs)
-                output = torch.sigmoid(output)
                 loss = loss_func(output, mask.float())
                 loss.backward()
                 optimizer.step()

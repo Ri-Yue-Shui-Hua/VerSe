@@ -113,22 +113,23 @@ class CommonDataset(Dataset):
 
 		for idx, c in enumerate(label_list):
 			ijk_coord = list(coord_list[idx])
-			direction = np.array(list(direction)).reshape(3, 3)
-			lps_center = np.matmul(direction, np.array(ijk_coord) * spacing)
+			lps_direction = np.array(list(direction)).reshape(3, 3)
+			lps_center = np.matmul(lps_direction, np.array(ijk_coord) * spacing)
 			lps_center = origin + lps_center
 			# print("lps_center: ", lps_center)
 			radius = np.array(patch_size) / 2
 			new_img = resampleCropImage(image, outspacing=spacing, lps_center=lps_center, radius=radius,
-			direction=direction)
+			direction=lps_direction)
 			new_mask = resampleCropImage(mask, outspacing=spacing, lps_center=lps_center, radius=radius,
-			direction=direction, interpolateMethod=sitk.sitkNearestNeighbor)
+			direction=lps_direction, interpolateMethod=sitk.sitkNearestNeighbor)
 			# save_image_label_from_itk_img(new_img, c)
 			# save_image_label_from_itk_img(new_mask, c, label_flag=True)
 			img_arr = sitk.GetArrayFromImage(new_img)
 			mask_arr = sitk.GetArrayFromImage(new_mask)
 			mask_arr[mask_arr != c] = 0
 			mask_arr[mask_arr == c] = 1
-			# save_image_label_from_array(mask_arr, origin, spacing, direction, label_flag=True)
+			# save_image_label_from_array(img_arr, c, origin, spacing, direction, label_flag=False)
+			# save_image_label_from_array(mask_arr, c, origin, spacing, direction, label_flag=True)
 			img_list.append(np.expand_dims(img_arr, 0))
 			mask_list.append(np.expand_dims(mask_arr, 0))
 		new_img = torch.Tensor(np.vstack(img_list)).unsqueeze(1)
