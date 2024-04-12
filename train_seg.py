@@ -126,7 +126,7 @@ def train_seg(args):
         end = time.time()
         train_loss /= num_batches
         train_dc /= num_batches
-        writer.add_scalar('Loss/ep_MSE', train_loss.item(), ep)
+        writer.add_scalar('Loss/ep_MSE', train_loss, ep)
         writer.add_scalar('Dice/ep_Dice', train_dc, ep)
         logger.info(
                     f"Epoch:{ep + 1}/{epochs}\ttrain_loss:{train_loss:.6f}\ttrain_dice:{train_dc * 100:.2f}%\tTime:{end - begin:.3f}s"
