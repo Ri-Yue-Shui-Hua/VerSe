@@ -7,3 +7,5 @@ runs/
 DATA/
 **/__pycache__
 train/
+unet_mse/
+result/
