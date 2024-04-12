@@ -6,3 +6,4 @@ runs/
 .idea/
 DATA/
 **/__pycache__
+train/

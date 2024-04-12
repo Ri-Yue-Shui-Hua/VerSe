@@ -89,6 +89,7 @@ def train_seg(args):
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     print("Start training")
+    global_step = 0
     for ep in tqdm(range(start_epoch, epochs)):
         tqdm.write(f"----------{ep}----------")
         model.train()
@@ -96,7 +97,7 @@ def train_seg(args):
         train_dc = 0.
         num_batches = 0
         begin = time.time()
-        for _, (ID, img_path) in enumerate(train_loader):
+        for _, (ID, img_path, classes) in enumerate(train_loader):
             patches = train_set.generate_train_patch(img_path[0])
             patch_loader = DataLoader(patches, 1)
             for i, (image, mask, landmark) in enumerate(patch_loader):
@@ -117,11 +118,16 @@ def train_seg(args):
                 mask = mask.squeeze().cpu().numpy()
                 dc = Dice(output, mask)
                 train_dc += dc
-                print(
-                    f"Ep:{ep + 1}\tID:{ID[0]}\tLoss:{loss.item():.6f}\tDice:{dc * 100:.2f}%", end='\r')
+                # print(
+                #     f"Ep:{ep + 1}\tID:{ID[0]}\tLoss:{loss.item():.6f}\tDice:{dc * 100:.2f}%", end='\r')
+                writer.add_scalar('Loss/sample_MSE', loss.item(), global_step)
+                writer.add_scalar('Dice/sample_Dice', dc, global_step)
+                global_step += 1
         end = time.time()
         train_loss /= num_batches
         train_dc /= num_batches
+        writer.add_scalar('Loss/ep_MSE', train_loss.item(), ep)
+        writer.add_scalar('Dice/ep_Dice', train_dc, ep)
         logger.info(
                     f"Epoch:{ep + 1}/{epochs}\ttrain_loss:{train_loss:.6f}\ttrain_dice:{train_dc * 100:.2f}%\tTime:{end - begin:.3f}s"
                 )

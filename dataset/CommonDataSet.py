@@ -11,6 +11,14 @@ import SimpleITK as sitk
 from torch.utils.data import Dataset, DataLoader, TensorDataset
 from typing import List, Tuple
 import random
+from batchgenerators.transforms.color_transforms import *
+from batchgenerators.transforms.spatial_transforms import *
+from batchgenerators.transforms.crop_and_pad_transforms import *
+from batchgenerators.transforms.utility_transforms import *
+from batchgenerators.transforms.sample_normalization_transforms import *
+from batchgenerators.transforms.noise_transforms import *
+from batchgenerators.transforms.resample_transforms import *
+from batchgenerators.transforms.abstract_transforms import Compose
 
 
 def get_json_label_coord(point_file):
@@ -85,6 +93,39 @@ def save_image_label_from_itk_img(image, category, label_flag=False):
 		sitk.WriteImage(image, f"./DATA/{category}.nii.gz")
 
 
+def choose_T(T):
+	idx = np.random.randint(3)
+	t = []
+	t.append(Compose(T))
+	t.append(T[np.random.randint(len(T))])
+	t.append(None)
+	print(idx)
+	return t[idx]
+
+
+def transform(d, gt):
+	T = []
+	single_channel_size = d.shape[1:]
+	d = d[np.newaxis, :, :, :, :]
+	gt = gt[np.newaxis, :, :, :, :]
+
+	T.append(GaussianNoiseTransform(p_per_sample=0.5))
+	T.append(GaussianBlurTransform((0.5, 3), different_sigma_per_channel=False, p_per_sample=0.8))
+	T.append(BrightnessMultiplicativeTransform(multiplier_range=(0.70, 1.3), per_channel=False, p_per_sample=0.5))
+	T.append(ContrastAugmentationTransform(contrast_range=(0.65, 1.5), p_per_sample=0.5))
+	T.append(GammaTransform(gamma_range=(0.7, 1.5), retain_stats=True, p_per_sample=0.5))
+	axis = [2]
+	T.append(MirrorTransform(data_key='data', label_key='gt', axes=axis))
+
+	T = choose_T(T)
+	if T is not None:
+		out_dict = T(data=d, gt=gt)
+		d, gt = out_dict.get('data'), out_dict.get('gt')
+	d = d[0]
+	gt = gt[0]
+	return d, gt
+
+
 class CommonDataset(Dataset):
 	def __init__(
 			self,
@@ -119,19 +160,22 @@ class CommonDataset(Dataset):
 			# print("lps_center: ", lps_center)
 			radius = np.array(patch_size) / 2
 			new_img = resampleCropImage(image, outspacing=spacing, lps_center=lps_center, radius=radius,
-			direction=lps_direction)
+			                            direction=lps_direction)
 			new_mask = resampleCropImage(mask, outspacing=spacing, lps_center=lps_center, radius=radius,
-			direction=lps_direction, interpolateMethod=sitk.sitkNearestNeighbor)
+			                             direction=lps_direction, interpolateMethod=sitk.sitkNearestNeighbor)
 			# save_image_label_from_itk_img(new_img, c)
 			# save_image_label_from_itk_img(new_mask, c, label_flag=True)
-			img_arr = sitk.GetArrayFromImage(new_img)
-			mask_arr = sitk.GetArrayFromImage(new_mask)
+			img_arr = sitk.GetArrayFromImage(new_img).astype(np.float32)
+			mask_arr = sitk.GetArrayFromImage(new_mask).astype(np.float32)
 			mask_arr[mask_arr != c] = 0
 			mask_arr[mask_arr == c] = 1
 			# save_image_label_from_array(img_arr, c, origin, spacing, direction, label_flag=False)
 			# save_image_label_from_array(mask_arr, c, origin, spacing, direction, label_flag=True)
-			img_list.append(np.expand_dims(img_arr, 0))
-			mask_list.append(np.expand_dims(mask_arr, 0))
+			img_arr = np.expand_dims(img_arr, 0)
+			mask_arr = np.expand_dims(mask_arr, 0)
+			img_arr, mask_arr = transform(img_arr, mask_arr)
+			img_list.append(img_arr)
+			mask_list.append(mask_arr)
 		new_img = torch.Tensor(np.vstack(img_list)).unsqueeze(1)
 		new_img = torch.clip(new_img / 2048, -1, 1)
 		new_mask = torch.Tensor(np.vstack(mask_list)).unsqueeze(1)
@@ -160,13 +204,15 @@ class CommonDataset(Dataset):
 		lps_center = origin + lps_center
 		print("lps_center: ", lps_center)
 		radius = np.array(patch_size) / 2
-		new_img = resampleCropImage(image, outspacing=spacing, lps_center=lps_center, radius=radius, direction=direction)
-		new_mask = resampleCropImage(mask, outspacing=spacing, lps_center=lps_center, radius=radius, direction=direction,
+		new_img = resampleCropImage(image, outspacing=spacing, lps_center=lps_center, radius=radius,
+		                            direction=direction)
+		new_mask = resampleCropImage(mask, outspacing=spacing, lps_center=lps_center, radius=radius,
+		                             direction=direction,
 		                             interpolateMethod=sitk.sitkNearestNeighbor)
-		sitk.WriteImage(new_img, f"./DATA/{label}.nii.gz")
-		sitk.WriteImage(new_mask, f"./DATA/{label}_label.nii.gz")
-		img_arr = sitk.GetArrayFromImage(new_img)
-		mask_arr = sitk.GetArrayFromImage(new_mask)
+		# sitk.WriteImage(new_img, f"./DATA/{label}.nii.gz")
+		# sitk.WriteImage(new_mask, f"./DATA/{label}_label.nii.gz")
+		img_arr = sitk.GetArrayFromImage(new_img).astype(np.float32)
+		mask_arr = sitk.GetArrayFromImage(new_mask).astype(np.float32)
 		mask_arr[mask_arr != label] = 0
 		mask_arr[mask_arr == label] = 1
 		patch_size = list(self.patch_size)[::-1]
@@ -192,17 +238,19 @@ class CommonDataset(Dataset):
 			direction = np.array(list(direction)).reshape(3, 3)
 			lps_center = np.matmul(direction, np.array(ijk_coord) * spacing)
 			lps_center = origin + lps_center
-			print("lps_center: ", lps_center)
+			# print("lps_center: ", lps_center)
 			radius = np.array(patch_size) / 2
-			new_img = resampleCropImage(image, outspacing=spacing, lps_center=lps_center, radius=radius, direction=direction)
-			new_mask = resampleCropImage(mask, outspacing=spacing, lps_center=lps_center, radius=radius,  direction=direction,
+			new_img = resampleCropImage(image, outspacing=spacing, lps_center=lps_center, radius=radius,
+			                            direction=direction)
+			new_mask = resampleCropImage(mask, outspacing=spacing, lps_center=lps_center, radius=radius,
+			                             direction=direction,
 			                             interpolateMethod=sitk.sitkNearestNeighbor)
-			sitk.WriteImage(new_img, f"./DATA/{c}.nii.gz")
-			sitk.WriteImage(new_mask, f"./DATA/{c}_label.nii.gz")
-			img_arr = sitk.GetArrayFromImage(new_img)
-			mask_arr = sitk.GetArrayFromImage(new_mask)
+			# sitk.WriteImage(new_img, f"./DATA/{c}.nii.gz")
+			# sitk.WriteImage(new_mask, f"./DATA/{c}_label.nii.gz")
+			img_arr = sitk.GetArrayFromImage(new_img).astype(np.float32)
+			mask_arr = sitk.GetArrayFromImage(new_mask).astype(np.float32)
 			mask_arr[mask_arr != c] = 0
-			mask_arr[mask_arr > 0] = 1
+			mask_arr[mask_arr == c] = 1
 
 			img_list.append(np.expand_dims(img_arr, 0))
 			mask_list.append(np.expand_dims(mask_arr, 0))
@@ -220,7 +268,9 @@ class CommonDataset(Dataset):
 		basename = os.path.basename(path)
 		ID = basename[:basename.find("_ct.nii.gz")]
 		img_path = os.path.join(self.root_dir, path)
-		return ID, img_path
+		point_file = img_path.replace("_ct.nii.gz", "_seg-subreg_ctd.json")
+		label_list, coord_list = get_json_label_coord(point_file)
+		return ID, img_path, label_list
 
 	def _get_train_data(self, index):
 		path = self.file_list[index]
@@ -241,7 +291,7 @@ class CommonDataset(Dataset):
 		image_file = os.path.join(self.root_dir, self.file_list[item])
 		if self.mode == 'train':
 			return self._get_inf_data(item)
-			# return self._get_train_data(item)
+		# return self._get_train_data(item)
 		return self._get_inf_data(item)
 
 
