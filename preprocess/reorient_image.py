@@ -3,8 +3,6 @@
 # @Time   : 2024-03-28 16:45
 # @Author : wmz
 from preprocess import *
-from generate_drr import *
-from generate_drr_heatmap import *
 
 
 def get_files(path, suffix):
@@ -37,20 +35,6 @@ def resample_to_spacing(file_folder, suffix, dst_folder):
         dst_file = os.path.join(dst_folder, file_id)
         nib.save(new_img, dst_file)
 
-
-def generate_drr_image(file_folder, suffix, drr_folder):
-    # 生成DRR图像
-    file_list = get_files(file_folder, suffix)
-    file_list = [file for file in file_list if "_seg" not in file]
-    for i, file in enumerate(file_list):
-        print("processing ", i, " of ", len(file_list), " files ......")
-        file_id = os.path.basename(file).replace(suffix, "")
-        output_folder = os.path.join(drr_folder, file_id)
-        os.makedirs(output_folder, exist_ok=True)
-        output_folder = output_folder + "/"
-        plastimatch_drr(file, output_folder)
-
-
 def generate_labels_annotates(file_folder, suffix, reorient_folder, spacing1_folder):
     # 生成质心标签
     # 质心需要重置方向，适应重采样到spacing=1mm的图像
@@ -69,10 +53,6 @@ def generate_labels_annotates(file_folder, suffix, reorient_folder, spacing1_fol
         # centroids_save(out_list, output_path)
         spacing1_list = centroids_rescale(out_list, image, voxel_spacing=(1, 1, 1))  # 重采样到spacing=1mm
         centroids_save(spacing1_list, spacing1_output_path)
-
-
-def generate_heatmap_image():
-    heatmap = create_heatmap([1024, 1024], centroids_drr, 11, 7)
 
 
 if __name__ == "__main__":

@@ -44,28 +44,30 @@ if __name__ == "__main__":
 	category_list = []
 	time_list = []
 
-	# for _, (ID, img_path, classes) in enumerate(train_loader):
-	# 	patches = train_set.generate_inf_patch(img_path[0])
-	# 	patch_loader = DataLoader(patches, batch_size)
-	# 	for i, (new_img, new_mask, landmark) in enumerate(patch_loader):
-	# 		new_img = new_img.to(device)
-	# 		heatmap = gaussian(landmark.to(device))
-	# 		inputs = torch.cat([new_img, heatmap], dim=1)
-	# 		begin = time.time()
-	# 		with torch.no_grad():
-	# 			pred = model(inputs)
-	# 		new_mask = new_mask.squeeze().numpy()
-	# 		pred = pred.cpu().squeeze().numpy()
-	# 		pred[pred >= 0.5] = 1
-	# 		pred[pred < 0.5] = 0
-	# 		end = time.time()
-	# 		dc = Dice(pred, new_mask)
-	# 		id_list.append(ID[0])
-	# 		dc_list.append(dc)
-	# 		dataset_list.append('train')
-	# 		category_list.append(classes[i])
-	# 		time_list.append(end - begin)
-	# 		print(f"{ID[0]}\t{classes[i]}\t{dc * 100:.2f}%")
+	for _, (ID, img_path, classes) in enumerate(train_loader):
+		patches = train_set.generate_inf_patch(img_path[0])
+		patch_loader = DataLoader(patches, batch_size)
+		classes = torch.cat(classes)
+		classes = classes.tolist()
+		for i, (new_img, new_mask, landmark) in enumerate(patch_loader):
+			new_img = new_img.to(device)
+			heatmap = gaussian(landmark.to(device))
+			inputs = torch.cat([new_img, heatmap], dim=1)
+			begin = time.time()
+			with torch.no_grad():
+				pred = model(inputs)
+			new_mask = new_mask.squeeze().numpy()
+			pred = pred.cpu().squeeze().numpy()
+			pred[pred >= 0.5] = 1
+			pred[pred < 0.5] = 0
+			end = time.time()
+			dc = Dice(pred, new_mask)
+			id_list.append(ID[0])
+			dc_list.append(dc)
+			dataset_list.append('train')
+			category_list.append(classes[i])
+			time_list.append(end - begin)
+			print(f"{ID[0]}\t{classes[i]}\t{dc * 100:.2f}%")
 
 	for _, (ID, img_path, classes) in enumerate(val_loader):
 		patches = val_set.generate_inf_patch(img_path[0])
@@ -92,28 +94,30 @@ if __name__ == "__main__":
 			time_list.append(end - begin)
 			print(f"{ID[0]}\t{classes[i]}\t{dc * 100:.2f}%")
 
-	# for _, (ID, img_path, classes) in enumerate(test_loader):
-	# 	patches = test_set.generate_inf_patch(img_path[0])
-	# 	patch_loader = DataLoader(patches, batch_size)
-	# 	for i, (new_img, new_mask, landmark) in enumerate(patch_loader):
-	# 		new_img = new_img.to(device)
-	# 		heatmap = gaussian(landmark.to(device))
-	# 		inputs = torch.cat([new_img, heatmap], dim=1)
-	# 		begin = time.time()
-	# 		with torch.no_grad():
-	# 			pred = model(inputs)
-	# 		new_mask = new_mask.squeeze().numpy()
-	# 		pred = pred.cpu().squeeze().numpy()
-	# 		pred[pred >= 0.5] = 1
-	# 		pred[pred < 0.5] = 0
-	# 		end = time.time()
-	# 		dc = Dice(pred, new_mask)
-	# 		id_list.append(ID[0])
-	# 		dc_list.append(dc)
-	# 		dataset_list.append('val')
-	# 		category_list.append(classes[i])
-	# 		time_list.append(end - begin)
-	# 		print(f"{ID[0]}\t{classes[i]}\t{dc * 100:.2f}%")
+	for _, (ID, img_path, classes) in enumerate(test_loader):
+		patches = test_set.generate_inf_patch(img_path[0])
+		patch_loader = DataLoader(patches, batch_size)
+		classes = torch.cat(classes)
+		classes = classes.tolist()
+		for i, (new_img, new_mask, landmark) in enumerate(patch_loader):
+			new_img = new_img.to(device)
+			heatmap = gaussian(landmark.to(device))
+			inputs = torch.cat([new_img, heatmap], dim=1)
+			begin = time.time()
+			with torch.no_grad():
+				pred = model(inputs)
+			new_mask = new_mask.squeeze().numpy()
+			pred = pred.cpu().squeeze().numpy()
+			pred[pred >= 0.5] = 1
+			pred[pred < 0.5] = 0
+			end = time.time()
+			dc = Dice(pred, new_mask)
+			id_list.append(ID[0])
+			dc_list.append(dc)
+			dataset_list.append('val')
+			category_list.append(classes[i])
+			time_list.append(end - begin)
+			print(f"{ID[0]}\t{classes[i]}\t{dc * 100:.2f}%")
 
 	df = pd.DataFrame()
 	df['Dice'] = dc_list

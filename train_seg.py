@@ -19,6 +19,7 @@ from models.Unet3D import UNet_3D as UNet
 from utils.filters import Gaussian
 from utils.metric import Dice
 from utils.utils import *
+from utils.tricks import *
 from dataset.CommonDataSet import CommonDataset
 import time
 import os
@@ -75,8 +76,11 @@ def train_seg(args):
     test_loader = DataLoader(dataset=test_set, batch_size=1, shuffle=False)
     val_loader = DataLoader(dataset=val_set, batch_size=1, shuffle=False)
     model = UNet(2, number_class).to(device)
+    
     loss_func = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=base_lr)
+    warm_up = 5
+    cosine_lr = WarmupCosineLR(optimizer, 1e-9, 1e-3, warm_up, epochs, 0.1)
     gaussian = Gaussian(3, None, 5, norm=True).to(device)
     start_epoch = 0
     if pretrained:
@@ -100,6 +104,8 @@ def train_seg(args):
         for _, (ID, img_path, classes) in enumerate(train_loader):
             patches = train_set.generate_train_patch(img_path[0])
             patch_loader = DataLoader(patches, 1)
+            classes = torch.cat(classes)
+            classes = classes.tolist()
             for i, (image, mask, landmark) in enumerate(patch_loader):
                 num_batches += 1
                 optimizer.zero_grad()
@@ -118,14 +124,18 @@ def train_seg(args):
                 mask = mask.squeeze().cpu().numpy()
                 dc = Dice(output, mask)
                 train_dc += dc
-                # print(
-                #     f"Ep:{ep + 1}\tID:{ID[0]}\tLoss:{loss.item():.6f}\tDice:{dc * 100:.2f}%", end='\r')
+                print(
+                    f"Ep:{ep + 1}\tID:{ID[0]}\t\tclass:{classes[i]}\tlr:{optimizer.state_dict()['param_groups'][0]['lr']}\tLoss:{loss.item():.6f}\tDice:{dc * 100:.2f}%",
+                    end='\n')
                 writer.add_scalar('Loss/sample_MSE', loss.item(), global_step)
                 writer.add_scalar('Dice/sample_Dice', dc, global_step)
                 global_step += 1
         end = time.time()
+        learning_rate = optimizer.state_dict()['param_groups'][0]['lr']
+        cosine_lr.step()
         train_loss /= num_batches
         train_dc /= num_batches
+        writer.add_scalar('Loss/learning_rate', learning_rate, global_step)
         writer.add_scalar('Loss/ep_MSE', train_loss, ep)
         writer.add_scalar('Dice/ep_Dice', train_dc, ep)
         logger.info(
