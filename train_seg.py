@@ -19,6 +19,7 @@ from models.Unet3D import UNet_3D as UNet
 from utils.filters import Gaussian
 from utils.metric import Dice
 from utils.utils import *
+from utils.tricks import *
 from dataset.CommonDataSet import CommonDataset
 import time
 import os
@@ -30,7 +31,8 @@ def set_logger(MODEL_PATH: str):
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
     log_file = "{}/log.txt".format(MODEL_PATH)
     file_handler = logging.FileHandler(log_file)
     file_handler.setLevel(logging.INFO)
@@ -61,7 +63,7 @@ def train_seg(args):
     save_path = args.log_path
     model_path = args.model
     best_score = 0
-    
+
     os.makedirs(f"{model_path}", exist_ok=True)
     logger = set_logger(model_path)
     writer = SummaryWriter(save_path + save_name)
@@ -77,8 +79,11 @@ def train_seg(args):
     # test_loader = DataLoader(dataset=test_set, batch_size=1, shuffle=False)
     # val_loader = DataLoader(dataset=val_set, batch_size=1, shuffle=False)
     model = UNet(2, number_class).to(device)
+
     loss_func = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=base_lr)
+    warm_up = 5
+    cosine_lr = WarmupCosineLR(optimizer, 1e-9, 1e-3, warm_up, epochs, 0.1)
     gaussian = Gaussian(3, None, 5, norm=True).to(device)
     start_epoch = 0
     if pretrained:
@@ -95,8 +100,8 @@ def train_seg(args):
     for ep in tqdm(range(start_epoch, epochs)):
         tqdm.write(f"----------{ep}----------")
         model.train()
-        train_loss = 0.
-        train_dc = 0.
+        train_loss = 0.0
+        train_dc = 0.0
         num_batches = 0
         begin = time.time()
         for _, (ID, img_path, classes) in enumerate(train_loader):
@@ -123,18 +128,23 @@ def train_seg(args):
                 dc = Dice(output, mask)
                 train_dc += dc
                 print(
-                    f"Ep:{ep + 1}\tID:{ID[0]}\tclass:{classes[i]}\tLoss:{loss.item():.6f}\tDice:{dc * 100:.2f}%", end='\n')
+                    f"Ep:{ep + 1}\tID:{ID[0]}\t\tclass:{classes[i]}\tlr:{optimizer.state_dict()['param_groups'][0]['lr']}\tLoss:{loss.item():.6f}\tDice:{dc * 100:.2f}%",
+                    end='\n',
+                )
                 writer.add_scalar('Loss/sample_MSE', loss.item(), global_step)
                 writer.add_scalar('Dice/sample_Dice', dc, global_step)
                 global_step += 1
         end = time.time()
+        learning_rate = optimizer.state_dict()['param_groups'][0]['lr']
+        cosine_lr.step()
         train_loss /= num_batches
         train_dc /= num_batches
+        writer.add_scalar('Loss/learning_rate', learning_rate, global_step)
         writer.add_scalar('Loss/ep_MSE', train_loss, ep)
         writer.add_scalar('Dice/ep_Dice', train_dc, ep)
         logger.info(
-                    f"Epoch:{ep + 1}/{epochs}\ttrain_loss:{train_loss:.6f}\ttrain_dice:{train_dc * 100:.2f}%\tTime:{end - begin:.3f}s"
-                )
+            f"Epoch:{ep + 1}/{epochs}\ttrain_loss:{train_loss:.6f}\ttrain_dice:{train_dc * 100:.2f}%\tTime:{end - begin:.3f}s"
+        )
         # save checkpoint every epoch
         checkpoint = {
             "epoch": ep,
@@ -162,16 +172,22 @@ if __name__ == "__main__":
     parser.add_argument('-batch_size', default=1, type=int, help='batch size')
     parser.add_argument('-epochs', default=150, type=int, help='training epochs')
     parser.add_argument('-eval_epoch', default=1, type=int, help='evaluation epoch')
-    parser.add_argument('-log_path', default="logs", type=str, help='the path of the log')
-    parser.add_argument('-read_params', default=False, type=bool, help='if read pretrained params')
-    parser.add_argument('-params_path', default="", type=str, help='the path of the pretrained model')
+    parser.add_argument(
+        '-log_path', default="logs", type=str, help='the path of the log'
+    )
+    parser.add_argument(
+        '-read_params', default=False, type=bool, help='if read pretrained params'
+    )
+    parser.add_argument(
+        '-params_path', default="", type=str, help='the path of the pretrained model'
+    )
     parser.add_argument('-basepath', default="", type=str, help='base dataset path')
-    parser.add_argument('-augmentation', default=False, type=bool, help='if augmentation')
+    parser.add_argument(
+        '-augmentation', default=False, type=bool, help='if augmentation'
+    )
     parser.add_argument('-num_class', default=1, type=int, help='the number of class')
     parser.add_argument("--model", type=str, default='unet_mse')
     parser.add_argument('-model_name', default="", type=str, help='Unet3D')
 
     args = parser.parse_args()
     train_seg(args)
-
-

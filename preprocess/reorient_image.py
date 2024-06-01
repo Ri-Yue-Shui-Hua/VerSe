@@ -6,7 +6,12 @@ from preprocess import *
 
 
 def get_files(path, suffix):
-    return [os.path.join(root, file) for root, dirs, files in os.walk(path) for file in files if file.endswith(suffix)]
+    return [
+        os.path.join(root, file)
+        for root, dirs, files in os.walk(path)
+        for file in files
+        if file.endswith(suffix)
+    ]
 
 
 def reorient_data(file_folder, suffix, dst_folder):
@@ -44,15 +49,23 @@ def generate_labels_annotates(file_folder, suffix, reorient_folder, spacing1_fol
     for i, file in enumerate(file_list):
         print("processing ", i, " of ", len(file_list), " files ......")
         file_id = os.path.basename(file).replace(suffix, "")
-        img_file = os.path.join(reorient_folder, file_id.replace("subreg_ctd", "vert_msk.nii.gz"))
-        output_path = os.path.join(reorient_folder, file_id.replace("subreg_ctd", "subreg_ctd.json"))
-        spacing1_output_path = os.path.join(spacing1_folder, file_id.replace("subreg_ctd", "subreg_ctd.json"))
+        img_file = os.path.join(
+            reorient_folder, file_id.replace("subreg_ctd", "vert_msk.nii.gz")
+        )
+        output_path = os.path.join(
+            reorient_folder, file_id.replace("subreg_ctd", "subreg_ctd.json")
+        )
+        spacing1_output_path = os.path.join(
+            spacing1_folder, file_id.replace("subreg_ctd", "subreg_ctd.json")
+        )
         image = nib.load(img_file)
         ctd_list = get_json(file)
         # dict_list = centroids_to_dict(ctd_list)
         out_list = centroids_reorient(ctd_list, image, decimals=1)  # 方向转正
         # centroids_save(out_list, output_path)
-        spacing1_list = centroids_rescale(out_list, image, voxel_spacing=(1, 1, 1))  # 重采样到spacing=1mm
+        spacing1_list = centroids_rescale(
+            out_list, image, voxel_spacing=(1, 1, 1)
+        )  # 重采样到spacing=1mm
         centroids_save(spacing1_list, spacing1_output_path)
 
 
@@ -76,6 +89,6 @@ if __name__ == "__main__":
     # # 2. 数据重采样到spacing=1mm
     # resample_to_spacing(reorient_folder, suffix, spacing1_folder)
     # 3. 质心点调整
-    generate_labels_annotates(label_file_folder, json_suffix, reorient_folder, spacing1_folder)
-
-
+    generate_labels_annotates(
+        label_file_folder, json_suffix, reorient_folder, spacing1_folder
+    )
