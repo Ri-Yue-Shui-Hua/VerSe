@@ -7,8 +7,8 @@ import numpy as np
 
 
 def Dice(pred: np.ndarray, target: np.ndarray, smooth: float = 1) -> float:
-    pred = np.atleast_1d(pred.astype(np.bool))
-    target = np.atleast_1d(target.astype(np.bool))
+    pred = np.atleast_1d(pred.astype(bool))
+    target = np.atleast_1d(target.astype(bool))
 
     intersction = np.count_nonzero(pred & target)
 

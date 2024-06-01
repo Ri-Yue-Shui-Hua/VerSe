@@ -65,15 +65,17 @@ def train_seg(args):
     os.makedirs(f"{model_path}", exist_ok=True)
     logger = set_logger(model_path)
     writer = SummaryWriter(save_path + save_name)
-    train_file_list = get_files(os.path.join(root_dir, 'train'), image_suffix)
-    train_set = CommonDataset(root_dir, train_file_list, 'train')
+    val_file_list = get_files(os.path.join(root_dir, 'validation'), image_suffix)
+    val_set = CommonDataset(root_dir, val_file_list, 'val')
     test_file_list = get_files(os.path.join(root_dir, 'test'), image_suffix)
     test_set = CommonDataset(root_dir, test_file_list, 'test')
-    val_file_list = get_files(os.path.join(root_dir, 'val'), image_suffix)
-    val_set = CommonDataset(root_dir, val_file_list, 'val')
+    train_file_list = get_files(os.path.join(root_dir, 'train'), image_suffix)
+    train_file_list.extend(val_file_list)
+    train_set = CommonDataset(root_dir, train_file_list, 'train')
+
     train_loader = DataLoader(dataset=train_set, batch_size=batch_size, shuffle=False)
-    test_loader = DataLoader(dataset=test_set, batch_size=1, shuffle=False)
-    val_loader = DataLoader(dataset=val_set, batch_size=1, shuffle=False)
+    # test_loader = DataLoader(dataset=test_set, batch_size=1, shuffle=False)
+    # val_loader = DataLoader(dataset=val_set, batch_size=1, shuffle=False)
     model = UNet(2, number_class).to(device)
     loss_func = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=base_lr)
@@ -100,6 +102,8 @@ def train_seg(args):
         for _, (ID, img_path, classes) in enumerate(train_loader):
             patches = train_set.generate_train_patch(img_path[0])
             patch_loader = DataLoader(patches, 1)
+            classes = torch.cat(classes)
+            classes = classes.tolist()
             for i, (image, mask, landmark) in enumerate(patch_loader):
                 num_batches += 1
                 optimizer.zero_grad()
@@ -118,8 +122,8 @@ def train_seg(args):
                 mask = mask.squeeze().cpu().numpy()
                 dc = Dice(output, mask)
                 train_dc += dc
-                # print(
-                #     f"Ep:{ep + 1}\tID:{ID[0]}\tLoss:{loss.item():.6f}\tDice:{dc * 100:.2f}%", end='\r')
+                print(
+                    f"Ep:{ep + 1}\tID:{ID[0]}\tclass:{classes[i]}\tLoss:{loss.item():.6f}\tDice:{dc * 100:.2f}%", end='\n')
                 writer.add_scalar('Loss/sample_MSE', loss.item(), global_step)
                 writer.add_scalar('Dice/sample_Dice', dc, global_step)
                 global_step += 1
@@ -149,14 +153,14 @@ def train_seg(args):
 if __name__ == "__main__":
     setup_seed(33)
     parser = argparse.ArgumentParser(description='Segmentation training')
-    parser.add_argument("--device", type=str, default='cpu')
-    parser.add_argument("--root", type=str, default='E:/Data/VerSe')
+    parser.add_argument("--device", type=str, default='cuda')
+    parser.add_argument("--root", type=str, default='E:/Dataset/VerSe19')
     parser.add_argument("--pretrained", type=str, default=None)
-    parser.add_argument("--ckpt", type=str, default=None)
+    parser.add_argument("--ckpt", type=str, default='./unet_mse/checkpoint.pth')
     parser.add_argument("--img_suffix", type=str, default="_ct.nii.gz")
     parser.add_argument('-lr', default=0.0001, type=float, help='learning rate')
     parser.add_argument('-batch_size', default=1, type=int, help='batch size')
-    parser.add_argument('-epochs', default=10, type=int, help='training epochs')
+    parser.add_argument('-epochs', default=150, type=int, help='training epochs')
     parser.add_argument('-eval_epoch', default=1, type=int, help='evaluation epoch')
     parser.add_argument('-log_path', default="logs", type=str, help='the path of the log')
     parser.add_argument('-read_params', default=False, type=bool, help='if read pretrained params')

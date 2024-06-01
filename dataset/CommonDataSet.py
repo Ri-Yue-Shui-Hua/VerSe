@@ -99,7 +99,7 @@ def choose_T(T):
 	t.append(Compose(T))
 	t.append(T[np.random.randint(len(T))])
 	t.append(None)
-	print(idx)
+	# print(idx)
 	return t[idx]
 
 
@@ -305,9 +305,9 @@ def get_files(path, suffix):
 
 
 if __name__ == "__main__":
-	root_dir = r"E:\Data\VerSe\test\1mm"
+	root_dir = r"E:\Dataset\VerSe19\dataset-verse19test\1mm"
 	image_suffix = "_ct.nii.gz"
-	mode = "train"
+	mode = "test"
 	image_list = get_files(root_dir, image_suffix)
 	common_dataset = CommonDataset(root_dir, image_list, mode)
 	dataloader = DataLoader(common_dataset)
@@ -322,9 +322,11 @@ if __name__ == "__main__":
 	# for _, (ID, image, mask, landmark, category) in enumerate(dataloader):
 	# 	print("ID: ", ID)
 
-	for _, (ID, img_path) in enumerate(dataloader):
+	for _, (ID, img_path, categories) in enumerate(dataloader):
 		patches = common_dataset.generate_train_patch(img_path[0])
 		patch_loader = DataLoader(patches, 1)
+		categories = torch.cat(categories)
+		categories = categories.tolist()
 		for i, (new_img, new_mask, landmark) in enumerate(patch_loader):
 			print("i: ", i)
 			new_img = new_img
